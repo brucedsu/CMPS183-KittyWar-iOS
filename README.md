@@ -1,2 +1,1 @@
-# CMPS183 Kitty War iOS App
-
+# CMPS 183 Kitty War iPhone Client

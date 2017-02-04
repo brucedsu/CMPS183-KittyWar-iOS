@@ -1,0 +1,7 @@
+platform :ios, '8.0'
+use_frameworks!
+
+target 'KittyWar' do
+    pod 'Starscream', '~> 2.0.0'
+    pod 'SwiftSocket'
+end

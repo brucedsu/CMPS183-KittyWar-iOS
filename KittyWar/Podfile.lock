@@ -1,0 +1,15 @@
+PODS:
+  - Starscream (2.0.0)
+  - SwiftSocket (1.2)
+
+DEPENDENCIES:
+  - Starscream (~> 2.0.0)
+  - SwiftSocket
+
+SPEC CHECKSUMS:
+  Starscream: 947c865596f0d6bb3f0203fee23228ed2d471468
+  SwiftSocket: 5052a3b10dbb9224cfb0875eb95940143252d458
+
+PODFILE CHECKSUM: f9b11cc5458aa7c684d8538244d1511ca0dca555
+
+COCOAPODS: 1.1.1
