@@ -7,7 +7,7 @@
 //
 
 import UIKit
-import Starscream
+import SwiftSocket
 
 class KWLoginVC: KWAlertVC {
 
@@ -49,11 +49,11 @@ class KWLoginVC: KWAlertVC {
                 print("Login Success")
 
                 // save username locally
-                UserDefaults.standard.set(notification.userInfo?[InfoKey.username] as! String,
+                UserDefaults.standard.set(notification.userInfo?[WebServerResponseKey.username] as! String,
                                           forKey: KWUserDefaultsKey.username)
 
                 // save token locally
-                UserDefaults.standard.set(notification.userInfo?[InfoKey.token] as! String,
+                UserDefaults.standard.set(notification.userInfo?[WebServerResponseKey.token] as! String,
                                           forKey: KWUserDefaultsKey.token)
 
                 // dismiss the login navigation controller

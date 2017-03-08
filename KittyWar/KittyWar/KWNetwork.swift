@@ -40,6 +40,12 @@ struct WebServerStatusCode {
     static let loginFail    = 400
 }
 
+struct WebServerResponseKey {
+    static let result   = "result"
+    static let token    = "token"
+    static let username = "username"
+}
+
 // MARK: - Game Server Constants
 
 struct GameServerURL {
@@ -91,6 +97,7 @@ struct GameServerResponseKey {
     static let flag     = "flag"
     static let bodySize = "bodySize"
     static let body     = "body"
+    static let result   = "result"
 }
 
 // MARK: - Notification
@@ -99,6 +106,7 @@ let registerResultNotification = Notification.Name("registerResultNotification")
 let loginResultNotification = Notification.Name("loginResultNotification")
 let receivedGameServerResponseNotification =
     Notification.Name("receivedGameServerResponseNotification")
+let findMatchResultNotification = Notification.Name("findMatchResultNotification")
 
 enum RegisterResult {
     case usernameIsTaken
@@ -111,62 +119,10 @@ enum LoginResult {
     case failure
 }
 
-struct WebServerResponseKey {
-    static let result   = "result"
-    static let token    = "token"
-    static let username = "username"
-}
-
-
-
-
-
-
-
-
-
-
-
 enum FindMatchResult {
     case success
     case failure
 }
-
-enum SelectCatResult {
-    case success
-    case failure
-}
-
-enum UseAbilityResult {
-    case success
-    case failure
-}
-
-enum ReadyResult {
-    case success
-    case failure
-}
-
-enum SelectMoveResult {
-    case success
-    case failure
-}
-
-enum SelectChanceCardResult {
-    case success
-    case failure
-}
-
-let findMatchResultNotification = Notification.Name("findMatchResultNotification")
-let selectCatResultNotification = Notification.Name("selectCatResultNotification")
-let setupGameNotification = Notification.Name("setupGameNotification")
-let useAbilityNotification = Notification.Name("useAbilityNotification")
-let nextPhaseNotification = Notification.Name("readyNotification")
-let selectMoveNotification = Notification.Name("selectMoveNotification")
-let selectChanceNotification = Notification.Name("selectChanceNotification")
-let readyForShowingCardNotificaiton = Notification.Name("readyForShowingCardNotificaition")
-let readyForStrategySettlementNotification = Notification.Name("readyForStrategySettlementNotification")
-let selectChanceCardNotification = Notification.Name("selectChanceCardNotification")
 
 class KWNetwork: NSObject {
 
@@ -229,7 +185,7 @@ class KWNetwork: NSObject {
                 do {
                     let nc = NotificationCenter.default
                     let parsedData = try JSONSerialization.jsonObject(with: data!, options: .allowFragments) as! [String: Any]
-                    let status = (parsedData[ResponseKey.status] as! NSString).integerValue
+                    let status = (parsedData[WebServerResponseKey.status] as! NSString).integerValue
 
                     DispatchQueue.main.async {  // go back to main thread
                         switch status  {
@@ -307,6 +263,7 @@ class KWNetwork: NSObject {
     }
 
     // MARK: - Parse Game Server Response
+    // TODO: This old parse response code is only used by connectToGameServer(). Deprecate in the future.
 
     enum  BodyType {
         case int
@@ -359,7 +316,7 @@ class KWNetwork: NSObject {
         return (flag, sizeOfBody, bodyString, bodyInt, bodyIntArray)
     }
 
-    // MARK: - Game Server
+    // MARK: - Game Server Request
 
     // flag (1 byte) + token (24 bytes) + sizeOfData (3 bytes)
     private func getMessagePrefix(flag: UInt8, sizeOfData: Int) -> [UInt8] {
@@ -437,28 +394,9 @@ class KWNetwork: NSObject {
         DispatchQueue(label: "Network Queue").async {
             switch self.gameServer.send(data: findMatchData) {
             case .success:
-                guard let response = self.gameServer.read(1024 * 10) else {
-                    return
-                }
-
-                DispatchQueue.main.async {
-                    // parse response
-                    let (flag, sizeOfBody, _, _, _) =
-                        self.parseGameServerResponse(response: response, bodyType: .int)
-
-                    // check response
-                    if flag == GameServerFlag.findMatch && sizeOfBody == 1 {  // successfully found a match
-                        print("Successfully found a match!")
-
-                        let nc = NotificationCenter.default
-                        nc.post(name: findMatchResultNotification,
-                                object: nil,
-                                userInfo: [InfoKey.result: FindMatchResult.success])
-                    }
-
-                }
+                print("Successfully sent find match")
             case .failure (let error):
-                print("Send data failed, error: \(error)")
+                print("Failed to send find match, error: \(error)")
             }
         }
     }
@@ -471,36 +409,40 @@ class KWNetwork: NSObject {
         var bytes = getMessagePrefix(flag: GameServerFlag.selectCat,
                                      sizeOfData: 1)
         bytes += DSConvertor.stringToBytes(string: "\(catID)")
-        // bytes.append(UInt8(catID))
         let selectCatData = Data(bytes: bytes)
 
         DispatchQueue(label: "Network Queue").async {
             switch self.gameServer.send(data: selectCatData) {
             case .success:
-                guard let response = self.gameServer.read(1024 * 10) else {
-                    return
-                }
-
-                DispatchQueue.main.async {
-                    // parse response
-                    let (flag, sizeOfBody, _, _, _) =
-                        self.parseGameServerResponse(response: response, bodyType: .int)
-
-                    // check response
-                    if flag == GameServerFlag.selectCat && sizeOfBody == 1 {  // successfully selected a cat
-                        print("Successfully select a cat!")
-
-                        let nc = NotificationCenter.default
-                        nc.post(name: selectCatResultNotification,
-                                object: nil,
-                                userInfo: [InfoKey.result: SelectCatResult.success])
-                    }
-                }
+                print("Successfully sent select cat \(catID)")
             case .failure (let error):
-                print("Send data failed, error: \(error)")
+                print("Failed to send select cat \(catID), error: \(error)")
             }
         }
     }
+
+    func ready() {
+        if !connectToGameServer() {
+            return
+        }
+
+        let bytes = getMessagePrefix(flag: GameServerFlag.ready,
+                                     sizeOfData: 0)
+        let readyData = Data(bytes: bytes)
+
+        DispatchQueue(label: "Network Queue").async {
+            switch self.gameServer.send(data: readyData) {
+            case .success:
+                print("Successfully sent ready")
+            case .failure (let error):
+                print("Failed to send ready, error: \(error)")
+            }
+        }
+    }
+
+
+
+
 
     func sendReadyForCatSelectionMessageToGameServer() {
         if !connectToGameServer() {
@@ -591,43 +533,6 @@ class KWNetwork: NSObject {
                         nc.post(name: useAbilityNotification,
                                 object: nil,
                                 userInfo: [InfoKey.result: UseAbilityResult.success])
-                    }
-                }
-            case .failure (let error):
-                print("Send data failed, error: \(error)")
-            }
-        }
-    }
-
-    func sendReadyMessageToGameServer() {
-        if !connectToGameServer() {
-            return
-        }
-
-        let bytes = getMessagePrefix(flag: GameServerFlag.ready,
-                                     sizeOfData: 0)
-        let readyData = Data(bytes: bytes)
-
-        DispatchQueue(label: "Network Queue").async {
-            switch self.gameServer.send(data: readyData) {
-            case .success:
-                guard let response = self.gameServer.read(1024 * 10) else {
-                    return
-                }
-
-                DispatchQueue.main.async {
-                    // parse response
-                    let (flag, sizeOfBody, _, _, _) =
-                        self.parseGameServerResponse(response: response, bodyType: .int)
-
-                    // check response
-                    if flag == GameServerFlag.nextPhase && sizeOfBody == 0 {
-                        print("Ready confirmed!")
-
-                        let nc = NotificationCenter.default
-                        nc.post(name: nextPhaseNotification,
-                                object: nil,
-                                userInfo: [InfoKey.result: ReadyResult.success])
                     }
                 }
             case .failure (let error):
@@ -865,7 +770,7 @@ class KWNetwork: NSObject {
             return
         }
 
-        if !startedReadingAndParsingResponses {
+        if startedReadingAndParsingResponses {
             return
         }
 
@@ -901,16 +806,31 @@ class KWNetwork: NSObject {
                 }
 
                 DispatchQueue.main.async {
-                    // create info dictionary
-                    let info: [AnyHashable : Any] = [GameServerResponseKey.flag: flag,
-                        GameServerResponseKey.bodySize: bodySize,
-                        GameServerResponseKey.body: body]
+                    switch flag {
+                    case GameServerFlag.findMatch:  // handled by find match view controller
+                        let findMatchResult = FindMatchResult.failure
 
-                    // send notification
-                    NotificationCenter.default.post(
-                        name: receivedGameServerResponseNotification,
-                        object: nil,
-                        userInfo: info)
+                        if bodySize == 1 {  // success
+                            findMatchResult = FindMatchResult.success
+                        }
+
+                        Notification.default.post(name: findMatchResultNotification,
+                                                  object: nil,
+                                                  userInfo: [GameServerResponseKey.result: findMatchResult])
+                        break
+                    default:  // handled by game view controller
+                        // create info dictionary
+                        let info: [AnyHashable : Any] = [GameServerResponseKey.flag: flag,
+                            GameServerResponseKey.bodySize: bodySize,
+                            GameServerResponseKey.body: body]
+
+                        // send notification
+                        NotificationCenter.default.post(
+                            name: receivedGameServerResponseNotification,
+                            object: nil,
+                            userInfo: info)
+                        break
+                    }
                 }
             }
         }

@@ -9,13 +9,13 @@
 import UIKit
 
 class KWFindMatchVC: KWAlertVC {
-    
+
     private struct StoryBoard {
         static let gameViewControllerSegue = "Game View Controller Segue"
     }
 
     @IBOutlet weak var findMatchIndicator: UIActivityIndicatorView!
-    
+
     @IBAction func findMatch(_ sender: UIButton) {
         // register to notification center
         let nc = NotificationCenter.default
@@ -23,18 +23,18 @@ class KWFindMatchVC: KWAlertVC {
                        selector: #selector(KWFindMatchVC.handleFindMatchResult(notification:)),
                        name: findMatchResultNotification,
                        object: nil)
-        
+
         // find match indicator start animation
         findMatchIndicator.startAnimating()
-        
+
         // find game
         KWNetwork.shared.findMatch()
     }
-    
+
     func handleFindMatchResult(notification: Notification) {
         // stop animate the indicator
         findMatchIndicator.stopAnimating()
-        
+
         if let result = notification.userInfo?[InfoKey.result] as? FindMatchResult {
             switch result {
             case .success:
@@ -45,5 +45,6 @@ class KWFindMatchVC: KWAlertVC {
             }
         }
     }
-    
+
 }
+
