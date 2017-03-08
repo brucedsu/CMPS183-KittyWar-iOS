@@ -201,8 +201,20 @@ UITableViewDataSource, UITableViewDelegate {
         }
     }
     
+    func processResponse(notification: Notification) {
+        
+    }
+    
     override func viewDidLoad() {
         super.viewDidLoad()
+        
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(KWGameVC.processResponse(notification:)),
+            name: receivedResponseNotification,
+            object: nil)
+
+        KWNetwork.shared.startReadingAndParsingResponses()
         
         // hide player view and opponent view, only show cat picking view
         playerView.isHidden = true
@@ -233,7 +245,7 @@ UITableViewDataSource, UITableViewDelegate {
     private func setupAvailableCats() {
         // persian cat
         let persianCat = KWCatCard()
-        persianCat.health = 20
+        persianCat.health = 10
         persianCat.title = "Persian Cat"
         persianCat.introduction = "The Persian cat is a long-haired breed of cat characterized by its round face and short muzzle. The Persian is generally described as a quiet cat. Typically placid in nature, it adapts quite well to apartment life."
         persianCat.inbornAbilityID = 0
@@ -760,6 +772,10 @@ UITableViewDataSource, UITableViewDelegate {
         }
         
         NotificationCenter.default.removeObserver(self)
+    }
+    
+    func parseGameServerResponse(notification: Notification) {
+        
     }
 
 }
