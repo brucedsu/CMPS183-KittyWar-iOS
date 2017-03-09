@@ -80,7 +80,7 @@ struct GameServerFlag {
     static let selectCat: UInt8              = 100
     static let useAbility: UInt8             = 101
     static let opponentCat: UInt8            = 49
-    static let playerGainHP: UInt8           = 50
+    static let gainHP: UInt8                 = 50
     static let opponentGainHP: UInt8         = 51
     static let damageModified: UInt8         = 52
     static let opponentDamageModified: UInt8 = 53
@@ -497,79 +497,6 @@ class KWNetwork: NSObject {
                 print("Successfully sent select chance card \(chanceCardID")
             case .failure (let error):
                 print("Failed to send select chance card \(chanceCardID), error: \(error)")
-            }
-        }
-    }
-
-    func sendReadyForStrategySettlement() {
-        if !connectToGameServer() {
-            return
-        }
-
-        let bytes = getMessagePrefix(flag: GameServerFlag.ready,
-                                     sizeOfData: 0)
-        let readyData = Data(bytes: bytes)
-
-        DispatchQueue(label: "Network Queue").async {
-            switch self.gameServer.send(data: readyData) {
-            case .success:
-                // ready response
-                guard let readyResponse = self.gameServer.read(4) else {
-                    return
-                }
-
-                let (readyResponseFlag, readyResponseSize, _, _, _) =
-                    self.parseGameServerResponse(response: readyResponse, bodyType: .int)
-
-                var playerHP: Int? = 0
-                var opponentHP: Int? = 0
-
-                // hp response1
-                guard let hpResponse1 = self.gameServer.read(5) else {
-                    return
-                }
-
-                let (hpResponse1Flag, hpResponse1Size, _, hp1, _) =
-                    self.parseGameServerResponse(response: hpResponse1, bodyType: .int)
-
-                if hpResponse1Flag == GameServerFlag.gainPlayerHP {
-                    playerHP = hp1
-                } else {
-                    opponentHP = hp1
-                }
-
-                // hp response2
-                guard let hpResponse2 = self.gameServer.read(5) else {
-                    return
-                }
-
-                let (hpResponse2Flag, hpResponse2Size, _, hp2, _) =
-                    self.parseGameServerResponse(response: hpResponse2, bodyType: .int)
-
-                if hpResponse2Flag == GameServerFlag.gainPlayerHP {
-                    playerHP = hp2
-                } else {
-                    opponentHP = hp2
-                }
-
-                // chance cards
-                guard let chanceCardsResponse = self.gameServer.read(10) else {
-                    return
-                }
-
-                let (chanceCardsResponseFlag, chanceCardsResponseSize, _, _, chanceCards) =
-                    self.parseGameServerResponse(response: chanceCardsResponse, bodyType: .intArray)
-
-                DispatchQueue.main.async {
-                    let nc = NotificationCenter.default
-                    nc.post(name: readyForStrategySettlementNotification,
-                            object: nil,
-                            userInfo: [InfoKey.playerHP: playerHP,
-                                       InfoKey.opponentHP: opponentHP,
-                                       InfoKey.chanceCards: chanceCards])
-                }
-            case .failure (let error):
-                print("Send data failed, error: \(error)")
             }
         }
     }

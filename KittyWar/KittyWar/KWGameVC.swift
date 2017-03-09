@@ -708,6 +708,7 @@ UITableViewDataSource, UITableViewDelegate {
         case GameServerFlag.gainChances:
             if body != nil && body.count > 0 {
                 for chanceCard in body {
+                    playerChanceCards = [KWChanceCard]()
                     playerChanceCards.append(availableChanceCards[chanceCard])
                     print("Get chance card \(chanceCard")
                 }
@@ -781,6 +782,15 @@ UITableViewDataSource, UITableViewDelegate {
 
                 self.showAlert(title: "Opponent Chance",
                     message: "Opponent selected chance: \(self.availableChanceCards[opponentChanceCardID!].title)")
+            }
+        case GameServerFlag.gainHP:
+            if body != nil && body.count > 0 {
+                // update player cat hp
+                playerCatHP = Int(body![0])
+            }
+        case GameServerFlag.opponentGainHP:
+            if body != nil && body.count > 0 {
+                opponentCatHP = Int(body![0])
             }
         default:
             break
