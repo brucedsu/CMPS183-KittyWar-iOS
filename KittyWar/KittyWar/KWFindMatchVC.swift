@@ -35,7 +35,7 @@ class KWFindMatchVC: KWAlertVC {
         // stop animate the indicator
         findMatchIndicator.stopAnimating()
 
-        if let result = notification.userInfo?[InfoKey.result] as? FindMatchResult {
+        if let result = notification.userInfo?[GameServerResponseKey.result] as? FindMatchResult {
             switch result {
             case .success:
                 // successfully found a match

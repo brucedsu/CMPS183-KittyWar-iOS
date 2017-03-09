@@ -8,6 +8,8 @@
 
 import UIKit
 
+// MARK: - Cat Picking Table View Cell
+
 class KWCatPickingTableViewCell: UITableViewCell {
     @IBOutlet private weak var catImageView: UIImageView!
     @IBOutlet private weak var catNameLabel: UILabel!
@@ -22,12 +24,18 @@ class KWCatPickingTableViewCell: UITableViewCell {
 
 }
 
+// MARK: - Chance Card Collection View Cell
+
 class KWChanceCardCollectionViewCell: UICollectionViewCell {
     @IBOutlet weak var chanceCardImageView: UIImageView!
 }
 
+// MARK: - Game View Controller
+
 class KWGameVC: KWAlertVC, UICollectionViewDataSource, UICollectionViewDelegate, UICollectionViewDelegateFlowLayout,
 UITableViewDataSource, UITableViewDelegate {
+
+    // MARK: - Outlets
 
     @IBOutlet private weak var playerView: UIView!
     @IBOutlet private weak var playerCatImageView: UIImageView!
@@ -48,9 +56,20 @@ UITableViewDataSource, UITableViewDelegate {
     @IBOutlet weak var catPickingTableView: UITableView!
     @IBOutlet weak var pickedCatNameLabel: UILabel!
 
+    // MARK: - Constants
+
     struct StoryBoard {
-        static let catPickingTableViewCellIdentifier = "Cat Picking Cell"
+        static let catPickingTableViewCellIdentifier      = "Cat Picking Cell"
         static let chanceCardCollectionViewCellIdentifier = "Chance Card Cell"
+    }
+
+    private struct KWGamePhase {
+        static let beforeGame         = 0
+        static let prelude            = 1
+        static let enactingStrategies = 2
+        static let showingCards       = 3
+        static let strategySettlement = 4
+        static let postlude           = 5
     }
 
     var availableCats = [KWCatCard]()
@@ -78,15 +97,6 @@ UITableViewDataSource, UITableViewDelegate {
         }
     }
 
-    private struct KWGamePhase {
-        static let beforeGame         = 0
-        static let prelude            = 1
-        static let enactingStrategies = 2
-        static let showingCards       = 3
-        static let strategySettlement = 4
-        static let postlude           = 5
-    }
-
     private func phaseToString(phase: Int) -> String {
         switch phase {
         case KWGamePhase.beforeGame:
@@ -102,7 +112,7 @@ UITableViewDataSource, UITableViewDelegate {
         case KWGamePhase.postlude:
             return "Postlude"
         default:
-            return ""
+            return "Phase Unknown"
         }
     }
 
@@ -114,6 +124,8 @@ UITableViewDataSource, UITableViewDelegate {
             return "Guard"
         case 2:
             return "Scratch"
+        case 3:
+            return "Skip"
         default:
             return "Unknown"
         }
@@ -198,11 +210,12 @@ UITableViewDataSource, UITableViewDelegate {
             playerStrategyLabel.text = "No strategy"
         } else {
             currentPhase = currentPhase + 1
+            currentPhase = currentPhase % 6
+
+            if currentPhase == 0 {
+                currentPhase += 1
+            }
         }
-    }
-
-    func processResponse(notification: Notification) {
-
     }
 
     override func viewDidLoad() {
@@ -217,8 +230,8 @@ UITableViewDataSource, UITableViewDelegate {
         KWNetwork.shared.startReadingAndParsingResponses()
 
         // hide player view and opponent view, only show cat picking view
-        playerView.isHidden = true
-        opponentView.isHidden = true
+        playerView.isHidden     = true
+        opponentView.isHidden   = true
         catPickingView.isHidden = false
 
         // setup cat picking view
@@ -238,8 +251,15 @@ UITableViewDataSource, UITableViewDelegate {
         catPickingTableView.dataSource = self
         catPickingTableView.delegate = self
 
+        // chance card collection view data source % delegate
         playerChanceCardCollectionView.dataSource = self
         playerChanceCardCollectionView.delegate = self
+
+        // register to notification center
+        NotificationCenter.default.addObserver(self,
+           selector: #selector(KWGameVC.parseGameServerResponse(notification:)),
+           name: receivedGameServerResponseNotification,
+           object: nil)
     }
 
     private func setupAvailableCats() {
@@ -401,57 +421,22 @@ UITableViewDataSource, UITableViewDelegate {
 
     // 1. next phase response (98) 2. opponent cat id(49) 3. random ability 4. chance cards
     @IBAction func fight(_ sender: UIButton) {
-        print("Selected cat id: \(selectedCatID!)")
-
         if selectedCatID == nil {
             return
         }
 
-        // register to notification center
-        let nc = NotificationCenter.default
-        nc.addObserver(self,
-                       selector: #selector(KWGameVC.handleSelectCatResult(notification:)),
-                       name: selectCatResultNotification,
-                       object: nil)
-
         KWNetwork.shared.selectCat(catID: selectedCatID!)
     }
 
-    func handleSelectCatResult(notification: Notification) {
-        if let result = notification.userInfo?[InfoKey.result] as? SelectCatResult {
-            switch result {
-            case .success:
-
-                // register to notification center
-                let nc = NotificationCenter.default
-                nc.addObserver(self,
-                               selector: #selector(KWGameVC.handleSetupGameNotification(notification:)),
-                               name: setupGameNotification,
-                               object: nil)
-
-                // send ready for cat selection
-                KWNetwork.shared.sendReadyForCatSelectionMessageToGameServer()
-                break
-            case .failure:
-                break
-            }
-        }
-    }
+    var selectedMoveID: Int = -1
 
     @IBAction func basicMoveButtenPressed(_ sender: UIButton) {
         if currentPhase == KWGamePhase.enactingStrategies {
-            let moveID = sender.tag
-
-            // register to notification center
-            let nc = NotificationCenter.default
-            nc.addObserver(self,
-                           selector: #selector(KWGameVC.handleSelectMoveNotification(notification:)),
-                           name: selectMoveNotification,
-                           object: nil)
-
-            KWNetwork.shared.selectMove(moveID: moveID)
+            let selectedMoveID = sender.tag
+            KWNetwork.shared.selectMove(moveID: selectedMoveID)
         } else {
-            showAlert(title: "Wrong Phase", message: "Can't use basic movements during \(phaseToString(phase: currentPhase))")
+            showAlert(title: "Wrong Phase",
+                message: "Can't select basic movements during \(phaseToString(phase: currentPhase))")
         }
     }
 
@@ -473,8 +458,6 @@ UITableViewDataSource, UITableViewDelegate {
             if let selectedMoveID = notification.userInfo?[InfoKey.selectedMoveID] as? Int {
                 switch result {
                 case .success:
-                    strategyDescription = moveToString(move: selectedMoveID)
-                    showAlert(title: "Selected \(moveToString(move: selectedMoveID))", message: "")
                     break
                 case .failure:
                     break
@@ -501,32 +484,10 @@ UITableViewDataSource, UITableViewDelegate {
         // only can use critical hit
         if randomAbilityCooldown == 10 {  // ability is ready
             randomAbilityCooldown = 0
-
-            // register to notification center
-            let nc = NotificationCenter.default
-            nc.addObserver(self,
-                           selector: #selector(KWGameVC.handleUseAbility(notification:)),
-                           name: useAbilityNotification,
-                           object: nil)
-
             KWNetwork.shared.useAbility(abilityID: ability.id)
         } else {
             showAlert(title: "Use Ability Error", message: "Ability is on cooldown")
         }
-    }
-
-    func handleUseAbility(notification: Notification) {
-        if let result = notification.userInfo?[InfoKey.result] as? UseAbilityResult {
-            switch result {
-            case .success:
-                showAlert(title: "Use Ability Success", message: "")
-                break
-            case .failure:
-                break
-            }
-        }
-
-        NotificationCenter.default.removeObserver(self)
     }
 
     @IBAction func readyButtonPressed(_ sender: UIButton) {
@@ -565,20 +526,6 @@ UITableViewDataSource, UITableViewDelegate {
             case .failure:
                 break
             }
-        }
-
-        NotificationCenter.default.removeObserver(self)
-    }
-
-    // 1. next phase (98) 2. reveal opponent move (58)  3. reveal opponent chance (59)
-    func handleReadyForShowingCardNotification(notification: Notification) {
-        startNextPhase()
-
-        let opponentMoveID = notification.userInfo?[InfoKey.opponentMoveID] as! Int
-        let opponentChanceCardID = notification.userInfo?[InfoKey.opponentChanceID] as? Int
-
-        dismiss(animated: true) {
-            self.showAlert(title: "Opponent Cards", message: "Opponent selected move: \(self.moveIDToString(move: opponentMoveID))" + (opponentChanceCardID == nil ? "" : ", chance card: \(self.availableChanceCards[opponentChanceCardID!].title)"))
         }
 
         NotificationCenter.default.removeObserver(self)
@@ -677,49 +624,16 @@ UITableViewDataSource, UITableViewDelegate {
         return CGSize(width: width, height: height)
     }
 
+    var selectedChanceCardID: Int = -1
+
     func collectionView(_ collectionView: UICollectionView, didHighlightItemAt indexPath: IndexPath) {
         if currentPhase == KWGamePhase.enactingStrategies {
-
-            // register to notification center
-            let nc = NotificationCenter.default
-            nc.addObserver(self,
-                           selector: #selector(KWGameVC.handleSelectChanceCardNotification(notification:)),
-                           name: selectChanceCardNotification,
-                           object: nil)
-
             let chanceCard = playerChanceCards[indexPath.row]
-            KWNetwork.shared.selectChanceCard(chanceCardID: chanceCard.id)
+            selectedChanceCardID = chanceCard.id
+            KWNetwork.shared.selectChanceCard(chanceCardID: selectedChanceCardID)
         } else {
             showAlert(title: "Wrong Phase", message: "Can't use chance card during current phase")
         }
-    }
-
-    func handleSelectChanceCardNotification(notification: Notification) {
-        if let result = notification.userInfo?[InfoKey.result] as? SelectChanceCardResult {
-            if let selectedChanceCardID = notification.userInfo?[InfoKey.selectedChanceCardID] as? Int {
-                switch result {
-                case .success:
-                    chanceCardDescription = availableChanceCards[selectedChanceCardID].title
-                    showAlert(title: "Selected \(chanceCardDescription)", message: "")
-
-                    var index = 0
-                    for chanceCard in playerChanceCards {
-                        if chanceCard.id == selectedChanceCardID {
-                            break
-                        }
-                        index += 1
-                    }
-
-                    playerChanceCards.remove(at: index)
-                    playerChanceCardCollectionView.reloadData()
-                    break
-                case .failure:
-                    break
-                }
-            }
-        }
-
-        NotificationCenter.default.removeObserver(self)
     }
 
     func parseGameServerResponse(notification: Notification) {
@@ -763,13 +677,7 @@ UITableViewDataSource, UITableViewDelegate {
                 opponentView.isHidden   = false
             }
 
-            // go next phase
-            currentPhase += 1
-            currentPhase = currentPhase % 6
-
-            if currentPhase == 0 {
-                currentPhase += 1
-            }
+            startNextPhase()
         case GameServerFlag.opponentCat:
             if body != nil && body.count > 0 {
                 let opponentCatID = Int(body![0])
@@ -805,6 +713,74 @@ UITableViewDataSource, UITableViewDelegate {
                 }
 
                 playerChanceCardCollectionView.reloadData()
+            }
+        case GameServerFlag.useAbility:
+            if body != nil && body.count > 0 {
+                let useAbilityBody = Int(body![0])
+
+                if (useAbilityBody == 0) {
+                    print("Ability is on cooldown")
+                } else if (useAbilityBody == 1) {
+                    print("Successfully used ability")
+
+                    showAlert(title: "Use Ability Succeeded", message: "")
+                }
+            }
+        case GameServerFlag.selectMove:
+            if body != nil && body.count > 0 {
+                let selectMoveBody = Int(body![0])
+
+                if selectMoveBody == 0 {
+                    print("Move \(moveToString(move: selectedMoveID)) could not be selected")
+                } else if selectMoveBody == 1 {
+                    print("Successfully selected move \(selectedMoveID)")
+
+                    strategyDescription = moveToString(move: selectedMoveID)
+                    showAlert(title: "Select Move Succeeded",
+                        message: "Successfully selected \(moveToString(move: selectedMoveID))")
+                }
+            }
+        case GameServerFlag.selectChance:
+            if body != nil && body.count > 0 {
+                let chanceBody = Int(body![0])
+
+                if chanceBody == 0 {
+                    print("Chance could not be selected")
+                } else if chanceBody == 1 {
+                    print("Chance successfully selected")
+
+                    chanceCardDescription = availableChanceCards[selectedChanceCardID].title
+                    showAlert(title: "Selected \(chanceCardDescription)", message: "")
+
+                    var index = 0
+                    for chanceCard in playerChanceCards {
+                        if chanceCard.id == selectedChanceCardID {
+                            break
+                        }
+                        index += 1
+                    }
+
+                    playerChanceCards.remove(at: index)
+                    playerChanceCardCollectionView.reloadData()
+                }
+            }
+        case GameServerFlag.revealMove:
+            if body != nil && body.count > 0 {
+                let opponentMoveID = Int(body![0])
+
+                print("Oppoent move id: \(opponentMoveID)")
+
+                self.showAlert(title: "Opponent Move",
+                        message: "Opponent selected move: \(self.moveIDToString(move: opponentMoveID))")
+            }
+        case GameServerFlag.revealChance:
+            if body != nil && body.count > 0 {
+                let opponentChanceID = Int(body![0])
+
+                print("Opponent chance id: \(opponentChanceID)")
+
+                self.showAlert(title: "Opponent Chance",
+                    message: "Opponent selected chance: \(self.availableChanceCards[opponentChanceCardID!].title)")
             }
         default:
             break
