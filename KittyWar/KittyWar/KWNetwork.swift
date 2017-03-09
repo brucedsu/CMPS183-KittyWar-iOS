@@ -233,8 +233,8 @@ class KWNetwork: NSObject {
             } else {
                 do {
                     let parsedData = try JSONSerialization.jsonObject(with: data!, options: .allowFragments) as! [String: Any]
-                    let status = (parsedData[ResponseKey.status] as! NSString).integerValue
-                    let token: String? = parsedData[ResponseKey.token] as? String
+                    let status = (parsedData[WebServerResponseKey.status] as! NSString).integerValue
+                    let token: String? = parsedData[WebServerResponseKey.token] as? String
 
                     DispatchQueue.main.async {  // go back to main thread
                         let nc = NotificationCenter.default
@@ -486,7 +486,7 @@ class KWNetwork: NSObject {
             return
         }
 
-        var bytes = getMessagePrefix(flag: GameServerFlag.selectChanceCard,
+        var bytes = getMessagePrefix(flag: GameServerFlag.selectChance,
                                      sizeOfData: 1)
         bytes += DSConvertor.stringToBytes(string: "\(chanceCardID)")
         let selectChanceCardData = Data(bytes: bytes)
@@ -494,14 +494,14 @@ class KWNetwork: NSObject {
         DispatchQueue(label: "Network Queue").async {
             switch self.gameServer.send(data: selectChanceCardData) {
             case .success:
-                print("Successfully sent select chance card \(chanceCardID")
+                print("Successfully sent select chance card \(chanceCardID)")
             case .failure (let error):
                 print("Failed to send select chance card \(chanceCardID), error: \(error)")
             }
         }
     }
 
-    private var startedReadingAndParsingResponses: Bool = false
+    private var startedReadingGameServerResponse: Bool = false
 
     private func bytesToInt(bytes: [UInt8]) -> Int {
         if bytes.count > 0 {
@@ -535,11 +535,11 @@ class KWNetwork: NSObject {
             return
         }
 
-        if startedReadingAndParsingResponses {
+        if startedReadingGameServerResponse {
             return
         }
 
-        startedReadingAndParsingResponses = true
+        startedReadingGameServerResponse = true
 
         DispatchQueue(label: "Read and Parse Responses").async {
             while true {
@@ -579,7 +579,7 @@ class KWNetwork: NSObject {
                             findMatchResult = FindMatchResult.success
                         }
 
-                        Notification.default.post(name: findMatchResultNotification,
+                        NotificationCenter.default.post(name: findMatchResultNotification,
                                                   object: nil,
                                                   userInfo: [GameServerResponseKey.result: findMatchResult])
                         break
@@ -587,7 +587,7 @@ class KWNetwork: NSObject {
                         // create info dictionary
                         let info: [AnyHashable : Any] = [GameServerResponseKey.flag: flag,
                             GameServerResponseKey.bodySize: bodySize,
-                            GameServerResponseKey.body: body]
+                            GameServerResponseKey.body: (body ?? [UInt8]())]
 
                         // send notification
                         NotificationCenter.default.post(

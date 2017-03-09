@@ -191,10 +191,9 @@ UITableViewDataSource, UITableViewDelegate {
         // winning condition
         if playerCatHP == 20 || opponentCatHP == 0 {
             showAlert(title: "You Win!", message: "You are awesome!")
+            return
         }
-
-        return
-
+        
         if currentPhase == KWGamePhase.postlude {
             currentPhase = KWGamePhase.prelude
 
@@ -209,26 +208,13 @@ UITableViewDataSource, UITableViewDelegate {
 
             playerStrategyLabel.text = "No strategy"
         } else {
-            currentPhase = currentPhase + 1
-            currentPhase = currentPhase % 6
-
-            if currentPhase == 0 {
-                currentPhase += 1
-            }
+            currentPhase += 1
         }
     }
 
     override func viewDidLoad() {
         super.viewDidLoad()
-
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(KWGameVC.processResponse(notification:)),
-            name: receivedResponseNotification,
-            object: nil)
-
-        KWNetwork.shared.startReadingAndParsingResponses()
-
+        
         // hide player view and opponent view, only show cat picking view
         playerView.isHidden     = true
         opponentView.isHidden   = true
@@ -260,6 +246,9 @@ UITableViewDataSource, UITableViewDelegate {
            selector: #selector(KWGameVC.parseGameServerResponse(notification:)),
            name: receivedGameServerResponseNotification,
            object: nil)
+        
+        // start reading game server response
+        KWNetwork.shared.startReadingGameServerResponse()
     }
 
     private func setupAvailableCats() {
@@ -453,21 +442,6 @@ UITableViewDataSource, UITableViewDelegate {
         }
     }
 
-    func handleSelectMoveNotification(notification: Notification) {
-        if let result = notification.userInfo?[InfoKey.result] as? SelectMoveResult {
-            if let selectedMoveID = notification.userInfo?[InfoKey.selectedMoveID] as? Int {
-                switch result {
-                case .success:
-                    break
-                case .failure:
-                    break
-                }
-            }
-        }
-
-        NotificationCenter.default.removeObserver(self)
-    }
-
     @IBAction func abilityButtonPressed(_ sender: UIButton) {
         let ability = playerCatAbilities[sender.tag]
 
@@ -491,67 +465,7 @@ UITableViewDataSource, UITableViewDelegate {
     }
 
     @IBAction func readyButtonPressed(_ sender: UIButton) {
-        let nc = NotificationCenter.default
-
-        if currentPhase == KWGamePhase.enactingStrategies {
-            nc.addObserver(self,
-                           selector: #selector(KWGameVC.handleReadyForShowingCardNotification(notification:)),
-                           name: readyForShowingCardNotificaiton,
-                           object: nil)
-
-            KWNetwork.shared.sendReadyForShowingCard()
-        } else if currentPhase == KWGamePhase.showingCards {
-            nc.addObserver(self,
-                           selector: #selector(KWGameVC.handleReadyForStrategySettlementNotification(notification:)),
-                           name: readyForStrategySettlementNotification,
-                           object: nil)
-
-            KWNetwork.shared.sendReadyForStrategySettlement()
-        } else {
-            nc.addObserver(self,
-                           selector: #selector(KWGameVC.handleNextPhaseNotification(notification:)),
-                           name: nextPhaseNotification,
-                           object: nil)
-
-            KWNetwork.shared.sendReadyMessageToGameServer()
-        }
-    }
-
-    func handleNextPhaseNotification(notification: Notification) {
-        if let result = notification.userInfo?[InfoKey.result] as? ReadyResult {
-            switch result {
-            case .success:
-                startNextPhase()
-                break
-            case .failure:
-                break
-            }
-        }
-
-        NotificationCenter.default.removeObserver(self)
-    }
-
-    func handleReadyForStrategySettlementNotification(notification: Notification) {
-        startNextPhase()
-
-        let newPlayerHP = notification.userInfo?[InfoKey.playerHP] as! Int
-        let newOpponentHP = notification.userInfo?[InfoKey.opponentHP] as! Int
-        let chanceCards = notification.userInfo?[InfoKey.chanceCards] as? [Int]
-
-        playerCatHP = newPlayerHP
-        opponentCatHP = newOpponentHP
-
-        if chanceCards != nil {
-            playerChanceCards = [KWChanceCard]()
-
-            for chanceCard in chanceCards! {
-                playerChanceCards.append(availableChanceCards[chanceCard])
-            }
-
-            playerChanceCardCollectionView.reloadData()
-        }
-
-        NotificationCenter.default.removeObserver(self)
+        KWNetwork.shared.ready()
     }
 
     // MARK: - UITableViewDataSource
@@ -644,7 +558,7 @@ UITableViewDataSource, UITableViewDelegate {
         switch flag {
         case GameServerFlag.selectCat:
             if bodySize == 1 {  // successfully selected a cat
-                print("Successfully select \(availableCats[selectedCatID!].title!")
+                print("Successfully select \(availableCats[selectedCatID!].title)")
 
                 showAlert(title: "Select Cat Succeeded",
                           message: "Successfully select \(availableCats[selectedCatID!].title)")
@@ -665,7 +579,7 @@ UITableViewDataSource, UITableViewDelegate {
                 KWNetwork.shared.ready()
             } else {  // failure
                 showAlert(title: "Select Cat Failed",
-                          message: "Failed to select cat \(availableCats[selectedCatID!].title")
+                          message: "Failed to select cat \(availableCats[selectedCatID!].title)")
             }
         case GameServerFlag.nextPhase:  // go to next phase
             print("Go to next phase")
@@ -679,10 +593,10 @@ UITableViewDataSource, UITableViewDelegate {
 
             startNextPhase()
         case GameServerFlag.opponentCat:
-            if body != nil && body.count > 0 {
+            if body != nil && body!.count > 0 {
                 let opponentCatID = Int(body![0])
 
-                print("Opponent selects cat \(availableCats[opponentCatID!].title")
+                print("Opponent selects cat \(availableCats[opponentCatID].title)")
 
                 // setup oppoent view
                 opponentCat = availableCats[opponentCatID]
@@ -692,7 +606,7 @@ UITableViewDataSource, UITableViewDelegate {
                 opponentCatAbilityImageView.image = UIImage(named: availableAbilities[opponentCat!.inbornAbilityID].title)
             }
         case GameServerFlag.randomAbility:
-            if body != nil && body.count > 0 {
+            if body != nil && body!.count > 0 {
                 let randomAbilityID = Int(body![0])
 
                 print("Get random ability \(randomAbilityID)")
@@ -706,17 +620,17 @@ UITableViewDataSource, UITableViewDelegate {
                 }
             }
         case GameServerFlag.gainChances:
-            if body != nil && body.count > 0 {
-                for chanceCard in body {
+            if body != nil && body!.count > 0 {
+                for chanceCard in body! {
                     playerChanceCards = [KWChanceCard]()
-                    playerChanceCards.append(availableChanceCards[chanceCard])
-                    print("Get chance card \(chanceCard")
+                    playerChanceCards.append(availableChanceCards[Int(chanceCard)])
+                    print("Get chance card \(chanceCard)")
                 }
 
                 playerChanceCardCollectionView.reloadData()
             }
         case GameServerFlag.useAbility:
-            if body != nil && body.count > 0 {
+            if body != nil && body!.count > 0 {
                 let useAbilityBody = Int(body![0])
 
                 if (useAbilityBody == 0) {
@@ -728,7 +642,7 @@ UITableViewDataSource, UITableViewDelegate {
                 }
             }
         case GameServerFlag.selectMove:
-            if body != nil && body.count > 0 {
+            if body != nil && body!.count > 0 {
                 let selectMoveBody = Int(body![0])
 
                 if selectMoveBody == 0 {
@@ -742,7 +656,7 @@ UITableViewDataSource, UITableViewDelegate {
                 }
             }
         case GameServerFlag.selectChance:
-            if body != nil && body.count > 0 {
+            if body != nil && body!.count > 0 {
                 let chanceBody = Int(body![0])
 
                 if chanceBody == 0 {
@@ -766,7 +680,7 @@ UITableViewDataSource, UITableViewDelegate {
                 }
             }
         case GameServerFlag.revealMove:
-            if body != nil && body.count > 0 {
+            if body != nil && body!.count > 0 {
                 let opponentMoveID = Int(body![0])
 
                 print("Oppoent move id: \(opponentMoveID)")
@@ -775,21 +689,21 @@ UITableViewDataSource, UITableViewDelegate {
                         message: "Opponent selected move: \(self.moveIDToString(move: opponentMoveID))")
             }
         case GameServerFlag.revealChance:
-            if body != nil && body.count > 0 {
+            if body != nil && body!.count > 0 {
                 let opponentChanceID = Int(body![0])
 
                 print("Opponent chance id: \(opponentChanceID)")
 
                 self.showAlert(title: "Opponent Chance",
-                    message: "Opponent selected chance: \(self.availableChanceCards[opponentChanceCardID!].title)")
+                    message: "Opponent selected chance: \(self.availableChanceCards[opponentChanceID].title)")
             }
         case GameServerFlag.gainHP:
-            if body != nil && body.count > 0 {
+            if body != nil && body!.count > 0 {
                 // update player cat hp
                 playerCatHP = Int(body![0])
             }
         case GameServerFlag.opponentGainHP:
-            if body != nil && body.count > 0 {
+            if body != nil && body!.count > 0 {
                 opponentCatHP = Int(body![0])
             }
         default:
@@ -798,4 +712,3 @@ UITableViewDataSource, UITableViewDelegate {
     }
 
 }
-
