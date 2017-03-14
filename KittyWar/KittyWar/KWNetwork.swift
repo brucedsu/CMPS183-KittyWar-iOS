@@ -296,19 +296,19 @@ class KWNetwork: NSObject {
             switch bodyType {
             case .int:
                 bodyInt = Int(response[4])
-                print("Response body int: \(bodyInt!)")
+                print("Response body: \(bodyInt!)")
             case .string:
                 let stringBytes = response[4...response.count - 1]
                 let stringData = Data(bytes: stringBytes)
                 bodyString = String(data: stringData, encoding: String.Encoding.utf8)
-                print("Response body string: \(bodyString!)")
+                print("Response body: \(bodyString!)")
             case .intArray:
                 bodyIntArray = [Int]()
                 let intArrayBytes = response[4...response.count - 1]
                 for intArrayByte in intArrayBytes {
                     bodyIntArray!.append(Int(intArrayByte))
                 }
-                print("Response int array: \(bodyIntArray!)")
+                print("Response body: \(bodyIntArray!)")
             default:
                 break
             }

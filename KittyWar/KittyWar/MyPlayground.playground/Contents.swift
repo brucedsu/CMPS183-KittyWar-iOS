@@ -2,5 +2,14 @@
 
 import Foundation
 
-let bytes = [0, 0, 0, 1, 2, 2, 2]
-let a = bytes[4...bytes.count-1]
+class DeiSu {
+    var sleep = 0 {
+        didSet {
+            print("Sleep")
+        }
+    }
+}
+
+let d = DeiSu()
+d.sleep += 1
+

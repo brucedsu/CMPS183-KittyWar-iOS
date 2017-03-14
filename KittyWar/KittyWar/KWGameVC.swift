@@ -77,7 +77,7 @@ UITableViewDataSource, UITableViewDelegate {
     var availableChanceCards = [KWChanceCard]()
 
     var playerCat: KWCatCard? = nil
-    var playerCatHP: Int = 0 {
+    var playerCatHP: Int = 10 {
         didSet {
             playerCatHPLabel.text = "HP: \(playerCatHP)"
         }
@@ -91,7 +91,7 @@ UITableViewDataSource, UITableViewDelegate {
     var playerChanceCards = [KWChanceCard]()
 
     var opponentCat: KWCatCard? = nil
-    var opponentCatHP: Int = 0 {
+    var opponentCatHP: Int = 10 {
         didSet {
             opponentCatHPLabel.text = "HP: \(opponentCatHP)"
         }
@@ -246,15 +246,12 @@ UITableViewDataSource, UITableViewDelegate {
            selector: #selector(KWGameVC.parseGameServerResponse(notification:)),
            name: receivedGameServerResponseNotification,
            object: nil)
-        
-        // start reading game server response
-        KWNetwork.shared.startReadingGameServerResponse()
     }
 
     private func setupAvailableCats() {
         // persian cat
         let persianCat = KWCatCard()
-        persianCat.health = 10
+        persianCat.health = 8
         persianCat.title = "Persian Cat"
         persianCat.introduction = "The Persian cat is a long-haired breed of cat characterized by its round face and short muzzle. The Persian is generally described as a quiet cat. Typically placid in nature, it adapts quite well to apartment life."
         persianCat.inbornAbilityID = 0
@@ -263,7 +260,7 @@ UITableViewDataSource, UITableViewDelegate {
 
         // ragdoll cat
         let ragdollCat = KWCatCard()
-        ragdollCat.health = 5
+        ragdollCat.health = 10
         ragdollCat.title = "Ragdoll Cat"
         ragdollCat.introduction = "The Ragdoll's sweet temperament is probably its most outstanding trait. Ragdolls are large, bulky and handsome cats. They have been commonly referred to as \"the gentle giants\" - because in spite of their handsomeness and grace, they are extremely even-tempered and docile."
         ragdollCat.inbornAbilityID = 1
@@ -408,12 +405,11 @@ UITableViewDataSource, UITableViewDelegate {
         availableChanceCards.append(doubleScratch)
     }
 
-    // 1. next phase response (98) 2. opponent cat id(49) 3. random ability 4. chance cards
     @IBAction func fight(_ sender: UIButton) {
         if selectedCatID == nil {
             return
         }
-
+        
         KWNetwork.shared.selectCat(catID: selectedCatID!)
     }
 
@@ -421,7 +417,7 @@ UITableViewDataSource, UITableViewDelegate {
 
     @IBAction func basicMoveButtenPressed(_ sender: UIButton) {
         if currentPhase == KWGamePhase.enactingStrategies {
-            let selectedMoveID = sender.tag
+            selectedMoveID = sender.tag
             KWNetwork.shared.selectMove(moveID: selectedMoveID)
         } else {
             showAlert(title: "Wrong Phase",
@@ -553,11 +549,13 @@ UITableViewDataSource, UITableViewDelegate {
     func parseGameServerResponse(notification: Notification) {
         let flag = notification.userInfo?[GameServerResponseKey.flag] as! UInt8
         let bodySize = notification.userInfo?[GameServerResponseKey.bodySize] as! Int
-        let body: [UInt8]? = notification.userInfo?[GameServerResponseKey.bodySize] as? [UInt8]
+        let body: [UInt8] = notification.userInfo?[GameServerResponseKey.body] as! [UInt8]
 
         switch flag {
         case GameServerFlag.selectCat:
             if bodySize == 1 {  // successfully selected a cat
+                print("Response body: \(Int(body[0]))")
+                
                 print("Successfully select \(availableCats[selectedCatID!].title)")
 
                 showAlert(title: "Select Cat Succeeded",
@@ -582,7 +580,7 @@ UITableViewDataSource, UITableViewDelegate {
                           message: "Failed to select cat \(availableCats[selectedCatID!].title)")
             }
         case GameServerFlag.nextPhase:  // go to next phase
-            print("Go to next phase")
+            print("Start next phase")
 
             if currentPhase == KWGamePhase.beforeGame {  // setup game
                 // hide cat picking table view & show game views
@@ -593,8 +591,10 @@ UITableViewDataSource, UITableViewDelegate {
 
             startNextPhase()
         case GameServerFlag.opponentCat:
-            if body != nil && body!.count > 0 {
-                let opponentCatID = Int(body![0])
+            if body.count > 0 {
+                print("Response body: \(Int(body[0]))")
+                
+                let opponentCatID = Int(body[0])
 
                 print("Opponent selects cat \(availableCats[opponentCatID].title)")
 
@@ -606,8 +606,10 @@ UITableViewDataSource, UITableViewDelegate {
                 opponentCatAbilityImageView.image = UIImage(named: availableAbilities[opponentCat!.inbornAbilityID].title)
             }
         case GameServerFlag.randomAbility:
-            if body != nil && body!.count > 0 {
-                let randomAbilityID = Int(body![0])
+            if body.count > 0 {
+                print("Response body: \(Int(body[0]))")
+                
+                let randomAbilityID = Int(body[0])
 
                 print("Get random ability \(randomAbilityID)")
 
@@ -620,9 +622,13 @@ UITableViewDataSource, UITableViewDelegate {
                 }
             }
         case GameServerFlag.gainChances:
-            if body != nil && body!.count > 0 {
-                for chanceCard in body! {
-                    playerChanceCards = [KWChanceCard]()
+            if body.count > 0 {
+                print("Response body: \(body)")
+                
+                // clear chance cards before adding
+                playerChanceCards = [KWChanceCard]()
+                
+                for chanceCard in body {
                     playerChanceCards.append(availableChanceCards[Int(chanceCard)])
                     print("Get chance card \(chanceCard)")
                 }
@@ -630,8 +636,10 @@ UITableViewDataSource, UITableViewDelegate {
                 playerChanceCardCollectionView.reloadData()
             }
         case GameServerFlag.useAbility:
-            if body != nil && body!.count > 0 {
-                let useAbilityBody = Int(body![0])
+            if body.count > 0 {
+                print("Response body: \(Int(body[0]))")
+                
+                let useAbilityBody = Int(body[0])
 
                 if (useAbilityBody == 0) {
                     print("Ability is on cooldown")
@@ -642,8 +650,10 @@ UITableViewDataSource, UITableViewDelegate {
                 }
             }
         case GameServerFlag.selectMove:
-            if body != nil && body!.count > 0 {
-                let selectMoveBody = Int(body![0])
+            if body.count > 0 {
+                print("Response body: \(Int(body[0]))")
+
+                let selectMoveBody = Int(body[0])
 
                 if selectMoveBody == 0 {
                     print("Move \(moveToString(move: selectedMoveID)) could not be selected")
@@ -656,8 +666,10 @@ UITableViewDataSource, UITableViewDelegate {
                 }
             }
         case GameServerFlag.selectChance:
-            if body != nil && body!.count > 0 {
-                let chanceBody = Int(body![0])
+            if body.count > 0 {
+                print("Response body: \(Int(body[0]))")
+
+                let chanceBody = Int(body[0])
 
                 if chanceBody == 0 {
                     print("Chance could not be selected")
@@ -680,31 +692,48 @@ UITableViewDataSource, UITableViewDelegate {
                 }
             }
         case GameServerFlag.revealMove:
-            if body != nil && body!.count > 0 {
-                let opponentMoveID = Int(body![0])
+            if body.count > 0 {
+                print("Response body: \(Int(body[0]))")
+
+                let opponentMoveID = Int(body[0])
 
                 print("Oppoent move id: \(opponentMoveID)")
-
-                self.showAlert(title: "Opponent Move",
-                        message: "Opponent selected move: \(self.moveIDToString(move: opponentMoveID))")
+                
+                if presentedViewController != nil {
+                    dismiss(animated: true) {
+                        self.showAlert(title: "Opponent Move",
+                                       message: "Opponent selected move: \(self.moveIDToString(move: opponentMoveID))")
+                    }
+                }
             }
         case GameServerFlag.revealChance:
-            if body != nil && body!.count > 0 {
-                let opponentChanceID = Int(body![0])
+            if body.count > 0 {
+                print("Response body: \(Int(body[0]))")
+
+                let opponentChanceID = Int(body[0])
 
                 print("Opponent chance id: \(opponentChanceID)")
 
-                self.showAlert(title: "Opponent Chance",
-                    message: "Opponent selected chance: \(self.availableChanceCards[opponentChanceID].title)")
+                if presentedViewController != nil {
+                    dismiss(animated: true) {
+                        self.showAlert(title: "Opponent Chance",
+                                       message: "Opponent selected chance: \(self.availableChanceCards[opponentChanceID].title)")
+                    }
+                }
             }
         case GameServerFlag.gainHP:
-            if body != nil && body!.count > 0 {
-                // update player cat hp
-                playerCatHP = Int(body![0])
+            if body.count > 0 {
+                print("Response body: \(Int(body[0]))")
+
+                // update player cat HP
+                playerCatHP = Int(body[0])
             }
         case GameServerFlag.opponentGainHP:
-            if body != nil && body!.count > 0 {
-                opponentCatHP = Int(body![0])
+            if body.count > 0 {
+                print("Response body: \(Int(body[0]))")
+
+                // update opponent cat HP
+                opponentCatHP = Int(body[0])
             }
         default:
             break

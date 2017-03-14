@@ -55,6 +55,9 @@ class KWLoginVC: KWAlertVC {
                 // save token locally
                 UserDefaults.standard.set(notification.userInfo?[WebServerResponseKey.token] as! String,
                                           forKey: KWUserDefaultsKey.token)
+                
+                // connect to game server
+                KWNetwork.shared.startReadingGameServerResponse()
 
                 // dismiss the login navigation controller
                 navigationController?.presentingViewController?.dismiss(animated: true, completion: nil)

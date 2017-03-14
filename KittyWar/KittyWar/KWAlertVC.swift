@@ -18,7 +18,8 @@ class KWAlertVC: UIViewController {
                                                 style: UIAlertActionStyle.default,
                                                 handler: nil))
         
-        present(alertController, animated: true, completion: nil)
+        // dismiss presented view controller first
+        self.present(alertController, animated: true, completion: nil)
     }
 
 }
